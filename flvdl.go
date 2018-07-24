@@ -296,29 +296,36 @@ func main() {
 		url += "-" + chapter
 		links := getDownloadLinks(url)
 		link, err := getZippyshareDownloadLink(links["zippyshare"])
+		if err != nil {
+			panic(err)
+		}
 		delete(links, "zippyshare")
+		err = downloadWithWget(link, chapter)
 		if err != nil {
-			fmt.Fprintln(os.Stderr, err)
-			fmt.Fprintln(os.Stderr, "Error al descargar desde zippyshare, intentando con otros proveedores...")
+			panic(err)
 		}
-		if err != nil {
-			err = downloadWithWget(link, chapter)
-
-			if err != nil {
-				fmt.Fprintln(os.Stderr, err)
-				fmt.Fprintln(os.Stderr, "Error al descargar desde zippyshare, intentando con otros proveedores...")
-			}
-		}
-		for k, v := range links {
-			link := getDownloadLinkWithYoutubedl(v)
-			if link != "" {
-				err := downloadWithWget(link, chapter)
-				if err != nil {
-					fmt.Fprintln(os.Stderr, err)
-					fmt.Fprintf(os.Stderr, "Error al descargar desde %s, intentando con otros proveedores...", k)
-				}
-			}
-		}
+		//if err != nil {
+		//	fmt.Fprintln(os.Stderr, err)
+		//	fmt.Fprintln(os.Stderr, "Error al descargar desde zippyshare, intentando con otros proveedores...")
+		//}
+		//if err != nil {
+		//	err = downloadWithWget(link, chapter)
+		//
+		//	if err != nil {
+		//		fmt.Fprintln(os.Stderr, err)
+		//		fmt.Fprintln(os.Stderr, "Error al descargar desde zippyshare, intentando con otros proveedores...")
+		//	}
+		//}
+		//for k, v := range links {
+		//	link := getDownloadLinkWithYoutubedl(v)
+		//	if link != "" {
+		//		err := downloadWithWget(link, chapter)
+		//		if err != nil {
+		//			fmt.Fprintln(os.Stderr, err)
+		//			fmt.Fprintf(os.Stderr, "Error al descargar desde %s, intentando con otros proveedores...", k)
+		//		}
+		//	}
+		//}
 		anime.LastChapter = chapter
 		saveAnime(*anime)
 	}
