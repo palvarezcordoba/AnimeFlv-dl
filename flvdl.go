@@ -15,7 +15,7 @@ import (
 
 	"github.com/PuerkitoBio/goquery"
 	"gopkg.in/yaml.v2"
-	"github.com/laher/wget-go/wget"
+	"github.com/palvarezcordoba/wget-go/wget"
 	"os/exec"
 )
 
@@ -125,6 +125,7 @@ func searchAnime(anime string) (map[int]AnimeResult, []int) {
 			Name: matches[i][3]}
 	}
 	sort.Ints(keys)
+	// TODO: NO usar keys, usar un for y len(animes)
 	return animes, keys
 }
 
@@ -141,6 +142,8 @@ func downloadWithWget(url string, cap string) error {
 		return err
 	}
 	wgetter.OutputFilename = cap + ".mp4"
+	wgetter.Timeout = 10
+	wgetter.Retries = 5
 	err, _ = wgetter.Exec(inPipe, outPipe, outPipe)
 	//cmd := exec.Command("wget", url)
 	//f, err := pty.Start(cmd)
@@ -233,7 +236,7 @@ func getChapter(anime *AnimeResult) []string {
 			panic(err)
 		}
 		want = strings.TrimSpace(want)
-		if want == "s" {
+		if want == "s" || want == "" {
 			chapter = strconv.Itoa(getInt(anime.LastChapter) + 1)
 		} else {
 			chapter = askChapter()
@@ -258,6 +261,48 @@ func getDownloadLinkWithYoutubedl(url string) string {
 		return ""
 	}
 	return s
+}
+
+func downloadChapter(anime *AnimeResult, chapter string) {
+	_saveAnime := func() {
+			anime.LastChapter = chapter
+			saveAnime(*anime)
+	}
+	url := strings.Replace(anime.Url, "/anime/", "/ver/", 1)
+	url += "-" + chapter
+	links := getDownloadLinks(url)
+	link, err := getZippyshareDownloadLink(links["zippyshare"])
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		fmt.Fprintln(os.Stderr, "Error al obtener el link de zippyshare.")
+		// Uso goto porque lo hago de una forma no confusa, y para evitar
+		// tener bloques if innecesarios.
+		goto ForLoop
+	}
+	err = downloadWithWget(link, chapter)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		fmt.Fprintln(os.Stderr, "Error al descargar desde zippyshare, intentando con otros proveedores...")
+	} else {
+		_saveAnime()
+		return
+	}
+
+  ForLoop:
+	delete(links, "zippyshare")
+	for k, v := range links {
+		link := getDownloadLinkWithYoutubedl(v)
+		if link != "" {
+			err = downloadWithWget(link, chapter)
+			if err != nil {
+				fmt.Fprintln(os.Stderr, err)
+				fmt.Fprintf(os.Stderr, "Error al descargar desde %s, intentando con otros proveedores...", k)
+				continue
+			}
+			_saveAnime()
+			return
+		}
+	}
 }
 
 func init() {
@@ -286,47 +331,13 @@ func main() {
 		if i2 <= i {
 			panic("Rango de capítulos incorrecto.")
 		}
-		for i <= i2 {
+		for ; i <= i2; i++ {
 			chapters = append(chapters, strconv.Itoa(i))
-			i++
 		}
 	}
 	for _, chapter := range chapters {
-		url := strings.Replace(anime.Url, "/anime/", "/ver/", 1)
-		url += "-" + chapter
-		links := getDownloadLinks(url)
-		link, err := getZippyshareDownloadLink(links["zippyshare"])
-		if err != nil {
-			panic(err)
-		}
-		delete(links, "zippyshare")
-		err = downloadWithWget(link, chapter)
-		if err != nil {
-			panic(err)
-		}
-		//if err != nil {
-		//	fmt.Fprintln(os.Stderr, err)
-		//	fmt.Fprintln(os.Stderr, "Error al descargar desde zippyshare, intentando con otros proveedores...")
-		//}
-		//if err != nil {
-		//	err = downloadWithWget(link, chapter)
-		//
-		//	if err != nil {
-		//		fmt.Fprintln(os.Stderr, err)
-		//		fmt.Fprintln(os.Stderr, "Error al descargar desde zippyshare, intentando con otros proveedores...")
-		//	}
-		//}
-		//for k, v := range links {
-		//	link := getDownloadLinkWithYoutubedl(v)
-		//	if link != "" {
-		//		err := downloadWithWget(link, chapter)
-		//		if err != nil {
-		//			fmt.Fprintln(os.Stderr, err)
-		//			fmt.Fprintf(os.Stderr, "Error al descargar desde %s, intentando con otros proveedores...", k)
-		//		}
-		//	}
-		//}
-		anime.LastChapter = chapter
-		saveAnime(*anime)
+		downloadChapter(anime, chapter)
 	}
 }
+
+
